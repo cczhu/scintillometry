@@ -10,6 +10,7 @@
 
 import numpy as np
 import operator
+import pyfftw
 
 
 class FFTBase(object):
@@ -25,7 +26,7 @@ class FFTBase(object):
     convention.
     """
 
-    def __init__(self, axes=-1, complex_data=True, norm='ortho', **kwargs):
+    def __init__(self, axes=-1, complex_data=True, norm=None):
         self._axes = axes
         self._complex_data = complex_data
         self._norm = norm
@@ -44,8 +45,8 @@ class FFTBase(object):
     def norm(self):
         """Normalization convention (same as for `numpy.fft`).
 
-        Can be either `None` (unscaled forward transform, 1/n scaled inverse
-        transform) or 'ortho' (1/sqrt(n) scaled for both).
+        `None` is an unscaled forward transform and 1 / n scaled inverse
+        transform, and 'ortho' is a 1 / sqrt(n) scaling for both.
         """
         return self._norm
 
@@ -55,33 +56,27 @@ class FFTBase(object):
         Parameters
         ----------
         a : array_like
-            Input array, can be complex.
-        axis : int or list, optional
-            Axis over which to compute the FFT.  If not given, the last axis
-            is used.
+            Data in time domain.
 
         Returns
         -------
         out : `~numpy.ndarray`
-            Fourier-transformed input.
+            Fourier transformed input.
         """
         pass
 
-    def ifft(self, a, axes=-1):
+    def ifft(self, a):
         """Placeholder for inverse FFT.
 
         Parameters
         ----------
         a : array_like
-            Input array, can be complex.
-        axis : int or list, optional
-            Axis over which to compute the iFFT.  If not given, the last axis
-            is used.
+            Data in frequency domain.
 
         Returns
         -------
         out : `~numpy.ndarray`
-            Fourier-transformed input.
+            Inverse transformed input.
         """
         pass
 
@@ -96,8 +91,8 @@ class FFTBase(object):
 
         if a_length is even
 
-          freqs  = [0, 1, ..., (a_length-1)/2, -(a_length-1)/2,
-                    ..., -1] * sample_rate
+            freqs  = [0, 1, ..., (a_length-1)/2, -(a_length-1)/2,
+                      ..., -1] * sample_rate
 
         if a_length is odd.
 
@@ -131,56 +126,72 @@ class NumpyFFT(FFTBase):
     Parameters
     ----------
     complex_data : bool, optional
-        Whether data in the time domain is complex or completely real. 
+        Whether data in the time domain is complex or completely real.
         Default: `True`.
     norm : 'ortho' or `None`, optional
         Normalization convention; options are identical as for `numpy.fft`
-        functions.
+        functions.  Default: `None`.
     """
 
-    def __init__(self, axes=-1, complex_data=True, norm='ortho', **kwargs):
-        super().__init__(axes=axes, complex_data=complex_data, norm=norm)
+    def __init__(self, axes=-1, complex_data=True, norm=None, **kwargs):
         # Get the number of axes to do FFT over.
         try:
-            axes_ndim = len(axes)
+            self._transform_ndim = len(axes)
         except TypeError:
-            axes_ndim = 1
+            self._transform_ndim = 1
         else:
-            assert axes_ndim > 0
+            assert self._transform_ndim > 0
             # If we pass a length 1 array-like, extract its element.
-            if axes_ndim == 1:
+            if self._transform_ndim == 1:
                 axes = axes[0]
+        super().__init__(axes=axes, complex_data=complex_data, norm=norm)
         # Select the forward and backward FFT functions to use.
-        if self.complex_data and axes_ndim > 1:
-            self._fft = np.fft.fftn
-            self._ifft = np.fft.ifftn
-        elif not self.complex_data and axes_ndim > 1:
-            self._fft = np.fft.rfftn
-            self._ifft = np.fft.irfftn
-        elif self.complex_data:
+        if self.complex_data:
             self._fft = np.fft.fft
             self._ifft = np.fft.ifft
+            self._fftn = np.fft.fftn
+            self._ifftn = np.fft.ifftn
         else:
             self._fft = np.fft.rfft
             self._ifft = np.fft.irfft
+            self._fftn = np.fft.rfftn
+            self._ifftn = np.fft.irfftn
 
     def fft(self, a):
-        """FFT, using the `numpy.fft` functions.
+        """Fourier transform, using the `numpy.fft` functions.
 
         Parameters
         ----------
         a : array_like
-            Input array, can be complex.
-        axis : int or list, optional
-            Axis over which to compute the iFFT.  If not given, the last axis
-            is used.
+            Data in time domain.
 
         Returns
         -------
         out : `~numpy.ndarray`
-            Fourier-transformed input.
+            Fourier transformed input.
         """
-        try:
-            axes = operator.index(axes)
-        except:
-            return self._fft()
+        if self._transform_ndim > 1:
+            return self._fft(a, axes=self.axes, norm=self.norm)
+        return self._fft(a, axis=self.axes, norm=self.norm)
+
+    def ifft(self, a):
+        """Inverse Fourier transform, using the `numpy.fft` functions.
+
+        Parameters
+        ----------
+        a : array_like
+            Data in frequency domain.
+
+        Returns
+        -------
+        out : `~numpy.ndarray`
+            Inverse transformed input.
+        """
+        if self._transform_ndim > 1:
+            return self._ifft(a, axes=self.axes, norm=self.norm)
+        return self._ifft(a, axis=self.axes, norm=self.norm)
+
+
+class pyfftwFFT(FFTBase):
+
+    def __init__(self, axes=-1, complex_data=True, norm=None, **kwargs):

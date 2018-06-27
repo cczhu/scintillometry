@@ -61,15 +61,27 @@ class TestFFTClasses(object):
         # Simple 1D complex sinusoid.
         self.y_exp = np.exp(1.j * 2. * np.pi * x)
         # Simple 1D real sinusoid.
-        self.y_sine = np.sin(2. * np.pi * x)
+        self.y_rsine = np.sin(2. * np.pi * x)
+        # More complex 2D transform.
+        self.y_r2D = np.random.uniform(low=-13., high=29., size=(100, 10, 30))
         # More complex 3D transform.
-        self.y_3D = np.random.uniform(low=-13., high=29., size=(100, 10, 30))
+        self.y_3D = (np.random.uniform(low=-13., high=29.,
+                                       size=(100, 10, 30)) +
+                     1.j * np.random.uniform(low=-13., high=29.,
+                                             size=(100, 10, 30)))
 
-    @pytest.mark.parametrize(
-        ('FFTClass', 'initdict'), [('NumpyFFT', {})])
+        # Transforms to be checked against.
+        self.Y_exp = np.fft.fft(self.y_exp)
+        self.Y_rsine = np.fft.rfft(self.y_rsine)
+        self.Y_r2D = np.fft.rfftn(self.y_r2D)
+        self.Y_r2D_0only = np.fft.rfftn(self.y_r2D, axes=(0,))
+        self.Y_3D = np.fft.fftn(self.y_3D)
+        self.Y_3D_12only = np.fft.fftn(self.y_3D, axes=(1, 2))
+
+    @pytest.mark.parametrize('FFTClass', ('NumpyFFT',))
     def test_fft(self, FFTClass, initdict):
         """Test various FFT implementations, all of which have the same
         interface, against numpy.fft.
         """
-        fft = FFTClass(**initdict)
+        fft = FFTClass(complex_data=False, **kwargs)
         #
