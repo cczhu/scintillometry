@@ -203,9 +203,7 @@ class NumpyFFT(FFTBase):
         out : `~numpy.ndarray`
             Fourier transformed input.
         """
-        if self._transform_ndim > 1:
-            return self._fft(a, axes=self.axes, norm=self.norm)
-        return self._fft(a, axis=self.axes, norm=self.norm)
+        return self._fft(a)
 
     @_check_fft_exists
     def ifft(self, a):
@@ -221,9 +219,7 @@ class NumpyFFT(FFTBase):
         out : `~numpy.ndarray`
             Inverse transformed input.
         """
-        if self._transform_ndim > 1:
-            return self._ifft(a, axes=self.axes, norm=self.norm)
-        return self._ifft(a, axis=self.axes, norm=self.norm)
+        return self._ifft(a)
 
 
 class PyfftwFFT(FFTBase):
